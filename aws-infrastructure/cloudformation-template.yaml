@@ -1,0 +1,638 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Real Estate Management System - AWS Infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+  
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional custom domain name for the application
+
+Resources:
+  # S3 Bucket for Static Website Hosting
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-frontend-${Environment}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, POST, PUT, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # S3 Bucket Policy for Public Read Access
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub '${FrontendBucket}/*'
+
+  # S3 Bucket for Property Images
+  ImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-images-${Environment}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, POST, PUT, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # S3 Bucket Policy for Images
+  ImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ImagesBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub '${ImagesBucket}/*'
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-user-pool-${Environment}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${AWS::StackName}-client-${Environment}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com'
+        - !Sub 'https://${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com/'
+      LogoutURLs:
+        - !Sub 'https://${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com'
+        - !Sub 'https://${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com/'
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # DynamoDB Table for Properties
+  PropertiesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-properties-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TypeIndex
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  # IAM Role for Lambda Functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt PropertiesTable.Arn
+                  - !Sub '${PropertiesTable.Arn}/index/*'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub '${ImagesBucket}/*'
+
+  # Lambda Function for Properties API
+  PropertiesLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-properties-api-${Environment}'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const dynamodb = new AWS.DynamoDB.DocumentClient();
+          const s3 = new AWS.S3();
+          
+          const TABLE_NAME = process.env.TABLE_NAME;
+          const BUCKET_NAME = process.env.BUCKET_NAME;
+          
+          exports.handler = async (event) => {
+            const headers = {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+              'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+            };
+            
+            if (event.httpMethod === 'OPTIONS') {
+              return { statusCode: 200, headers, body: '' };
+            }
+            
+            try {
+              const { httpMethod, pathParameters, body, queryStringParameters } = event;
+              const id = pathParameters?.id;
+              
+              switch (httpMethod) {
+                case 'GET':
+                  if (id) {
+                    // Get single property
+                    const result = await dynamodb.get({
+                      TableName: TABLE_NAME,
+                      Key: { id }
+                    }).promise();
+                    
+                    if (!result.Item) {
+                      return {
+                        statusCode: 404,
+                        headers,
+                        body: JSON.stringify({ error: 'Property not found' })
+                      };
+                    }
+                    
+                    return {
+                      statusCode: 200,
+                      headers,
+                      body: JSON.stringify(result.Item)
+                    };
+                  } else {
+                    // Get all properties with optional filtering
+                    const params = {
+                      TableName: TABLE_NAME,
+                      Limit: 50
+                    };
+                    
+                    if (queryStringParameters?.type) {
+                      params.IndexName = 'TypeIndex';
+                      params.KeyConditionExpression = '#type = :type';
+                      params.ExpressionAttributeNames = { '#type': 'type' };
+                      params.ExpressionAttributeValues = { ':type': queryStringParameters.type };
+                    }
+                    
+                    const result = await dynamodb.scan(params).promise();
+                    
+                    return {
+                      statusCode: 200,
+                      headers,
+                      body: JSON.stringify(result.Items || [])
+                    };
+                  }
+                  
+                case 'POST':
+                  const property = JSON.parse(body);
+                  property.id = property.id || Date.now().toString();
+                  property.createdAt = new Date().toISOString();
+                  
+                  await dynamodb.put({
+                    TableName: TABLE_NAME,
+                    Item: property
+                  }).promise();
+                  
+                  return {
+                    statusCode: 201,
+                    headers,
+                    body: JSON.stringify(property)
+                  };
+                  
+                case 'PUT':
+                  if (!id) {
+                    return {
+                      statusCode: 400,
+                      headers,
+                      body: JSON.stringify({ error: 'Property ID is required' })
+                    };
+                  }
+                  
+                  const updateData = JSON.parse(body);
+                  updateData.updatedAt = new Date().toISOString();
+                  
+                  const updateParams = {
+                    TableName: TABLE_NAME,
+                    Key: { id },
+                    UpdateExpression: 'SET ' + Object.keys(updateData).map(key => `#${key} = :${key}`).join(', '),
+                    ExpressionAttributeNames: Object.keys(updateData).reduce((acc, key) => {
+                      acc[`#${key}`] = key;
+                      return acc;
+                    }, {}),
+                    ExpressionAttributeValues: Object.keys(updateData).reduce((acc, key) => {
+                      acc[`:${key}`] = updateData[key];
+                      return acc;
+                    }, {}),
+                    ReturnValues: 'ALL_NEW'
+                  };
+                  
+                  const updateResult = await dynamodb.update(updateParams).promise();
+                  
+                  return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(updateResult.Attributes)
+                  };
+                  
+                case 'DELETE':
+                  if (!id) {
+                    return {
+                      statusCode: 400,
+                      headers,
+                      body: JSON.stringify({ error: 'Property ID is required' })
+                    };
+                  }
+                  
+                  await dynamodb.delete({
+                    TableName: TABLE_NAME,
+                    Key: { id }
+                  }).promise();
+                  
+                  return {
+                    statusCode: 204,
+                    headers,
+                    body: ''
+                  };
+                  
+                default:
+                  return {
+                    statusCode: 405,
+                    headers,
+                    body: JSON.stringify({ error: 'Method not allowed' })
+                  };
+              }
+            } catch (error) {
+              console.error('Error:', error);
+              return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'Internal server error' })
+              };
+            }
+          };
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PropertiesTable
+          BUCKET_NAME: !Ref ImagesBucket
+
+  # Lambda Function for Image Upload (Pre-signed URLs)
+  ImageUploadLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-image-upload-${Environment}'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const s3 = new AWS.S3();
+          
+          const BUCKET_NAME = process.env.BUCKET_NAME;
+          
+          exports.handler = async (event) => {
+            const headers = {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+              'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+            };
+            
+            if (event.httpMethod === 'OPTIONS') {
+              return { statusCode: 200, headers, body: '' };
+            }
+            
+            try {
+              const { httpMethod, body } = event;
+              
+              if (httpMethod === 'POST') {
+                const { fileName, fileType } = JSON.parse(body);
+                const key = `properties/${Date.now()}-${fileName}`;
+                
+                const presignedUrl = s3.getSignedUrl('putObject', {
+                  Bucket: BUCKET_NAME,
+                  Key: key,
+                  ContentType: fileType,
+                  Expires: 300 // 5 minutes
+                });
+                
+                return {
+                  statusCode: 200,
+                  headers,
+                  body: JSON.stringify({
+                    uploadUrl: presignedUrl,
+                    imageUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
+                  })
+                };
+              }
+              
+              return {
+                statusCode: 405,
+                headers,
+                body: JSON.stringify({ error: 'Method not allowed' })
+              };
+            } catch (error) {
+              console.error('Error:', error);
+              return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'Internal server error' })
+              };
+            }
+          };
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ImagesBucket
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${AWS::StackName}-api-${Environment}'
+      Description: Real Estate Management System API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Cognito Authorizer
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref ApiGateway
+      ProviderARNs:
+        - !GetAtt UserPool.Arn
+
+  # API Gateway Resources and Methods
+  PropertiesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: properties
+
+  PropertyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !Ref PropertiesResource
+      PathPart: '{id}'
+
+  # GET /properties
+  GetPropertiesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref PropertiesResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PropertiesLambda.Arn}/invocations'
+
+  # POST /properties
+  PostPropertiesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref PropertiesResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PropertiesLambda.Arn}/invocations'
+
+  # GET /properties/{id}
+  GetPropertyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref PropertyResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PropertiesLambda.Arn}/invocations'
+
+  # PUT /properties/{id}
+  PutPropertyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref PropertyResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PropertiesLambda.Arn}/invocations'
+
+  # DELETE /properties/{id}
+  DeletePropertyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref PropertyResource
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PropertiesLambda.Arn}/invocations'
+
+  # Image Upload Resource
+  ImageUploadResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: upload
+
+  # POST /upload
+  PostUploadMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ImageUploadResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ImageUploadLambda.Arn}/invocations'
+
+  # Lambda Permissions
+  PropertiesLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PropertiesLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
+  ImageUploadLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ImageUploadLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GetPropertiesMethod
+      - PostPropertiesMethod
+      - GetPropertyMethod
+      - PutPropertyMethod
+      - DeletePropertyMethod
+      - PostUploadMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: !Ref Environment
+
+Outputs:
+  FrontendBucketName:
+    Description: S3 Bucket for Frontend
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  FrontendWebsiteURL:
+    Description: Frontend Website URL
+    Value: !GetAtt FrontendBucket.WebsiteURL
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendURL'
+
+  ImagesBucketName:
+    Description: S3 Bucket for Images
+    Value: !Ref ImagesBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-ImagesBucket'
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  ApiGatewayURL:
+    Description: API Gateway URL
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiURL'
+
+  PropertiesTableName:
+    Description: DynamoDB Properties Table Name
+    Value: !Ref PropertiesTable
+    Export:
+      Name: !Sub '${AWS::StackName}-PropertiesTable'

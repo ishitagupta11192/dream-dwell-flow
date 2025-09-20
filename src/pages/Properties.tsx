@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import SearchForm, { SearchFilters } from "@/components/SearchForm";
 import PropertyCard, { Property } from "@/components/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiService } from "@/lib/api";
 import { Grid3X3, List, SlidersHorizontal } from "lucide-react";
 
 // Mock data - in real app this would come from API
@@ -102,34 +105,30 @@ const mockProperties: Property[] = [
 ];
 
 const Properties = () => {
-  const [properties, setProperties] = useState<Property[]>(mockProperties);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const propertiesPerPage = 6;
+  
+  const { isAuthenticated } = useAuth();
+
+  // Fetch properties using React Query
+  const { data: properties = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['properties', searchFilters],
+    queryFn: () => apiService.getProperties(searchFilters),
+    enabled: true,
+  });
 
   const handleSearch = (filters: SearchFilters) => {
-    // In a real app, this would make an API call with filters
-    console.log("Search filters:", filters);
+    setSearchFilters(filters);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   const handleSort = (value: string) => {
     setSortBy(value);
-    const sorted = [...properties].sort((a, b) => {
-      switch (value) {
-        case "price-low":
-          return a.price - b.price;
-        case "price-high":
-          return b.price - a.price;
-        case "bedrooms":
-          return b.bedrooms - a.bedrooms;
-        case "area":
-          return b.area - a.area;
-        default:
-          return 0;
-      }
-    });
-    setProperties(sorted);
+    // Note: In a real app, sorting would be handled by the API
+    // For now, we'll just update the sort state
   };
 
   const totalPages = Math.ceil(properties.length / propertiesPerPage);
@@ -208,18 +207,45 @@ const Properties = () => {
       {/* Properties Grid */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {currentProperties.map((property) => (
-                <PropertyCard key={property.id} property={property} />
-              ))}
+          {isLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-real-estate-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading properties...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500 mb-4">Error loading properties. Please try again.</p>
+              <Button onClick={() => refetch()} variant="outline">
+                Retry
+              </Button>
+            </div>
+          ) : properties.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">No properties found.</p>
+              {isAuthenticated && (
+                <Button onClick={() => {/* Navigate to add property */}}>
+                  Add Your First Property
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="space-y-6">
-              {currentProperties.map((property) => (
-                <PropertyCard key={property.id} property={property} />
-              ))}
-            </div>
+            <>
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {currentProperties.map((property) => (
+                    <PropertyCard key={property.id} property={property} />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {currentProperties.map((property) => (
+                    <PropertyCard key={property.id} property={property} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
           
           {/* Pagination */}

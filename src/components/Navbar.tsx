@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Home, Building, User, Phone } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { Menu, X, Home, Building, User, Phone, LogOut, Settings } from "lucide-react";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { isAuthenticated, user, signOut } = useAuth();
 
   const navigation = [
     { name: "Home", href: "/", icon: Home },
@@ -48,12 +52,61 @@ const Navbar = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline" asChild>
-              <Link to="/login">Sign In</Link>
-            </Button>
-            <Button asChild className="bg-real-estate-primary hover:bg-real-estate-primary/90">
-              <Link to="/register">Get Started</Link>
-            </Button>
+            {isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src="" alt={user?.name || "User"} />
+                      <AvatarFallback>
+                        {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex flex-col space-y-1 p-2">
+                    <p className="text-sm font-medium leading-none">{user?.name}</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={async (event) => {
+                      event.preventDefault();
+                      await signOut();
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button variant="outline" asChild>
+                  <Link to="/login">Sign In</Link>
+                </Button>
+                <Button asChild className="bg-real-estate-primary hover:bg-real-estate-primary/90">
+                  <Link to="/register">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -89,16 +142,42 @@ const Navbar = () => {
                 </Link>
               ))}
               <div className="pt-4 pb-2 space-y-2">
-                <Button variant="outline" className="w-full" asChild>
-                  <Link to="/login" onClick={() => setIsOpen(false)}>
-                    Sign In
-                  </Link>
-                </Button>
-                <Button className="w-full bg-real-estate-primary hover:bg-real-estate-primary/90" asChild>
-                  <Link to="/register" onClick={() => setIsOpen(false)}>
-                    Get Started
-                  </Link>
-                </Button>
+                {isAuthenticated ? (
+                  <>
+                    <div className="px-3 py-2">
+                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    </div>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link to="/profile" onClick={() => setIsOpen(false)}>
+                        Profile
+                      </Link>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={async () => {
+                        await signOut();
+                        setIsOpen(false);
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link to="/login" onClick={() => setIsOpen(false)}>
+                        Sign In
+                      </Link>
+                    </Button>
+                    <Button className="w-full bg-real-estate-primary hover:bg-real-estate-primary/90" asChild>
+                      <Link to="/register" onClick={() => setIsOpen(false)}>
+                        Get Started
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

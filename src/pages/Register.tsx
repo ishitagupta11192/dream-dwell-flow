@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Building, Eye, EyeOff } from "lucide-react";
 
 const Register = () => {
@@ -22,6 +24,12 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  
+  const { signUp, confirmSignUp } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -31,22 +39,63 @@ const Register = () => {
     e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
+      toast({
+        title: "Error",
+        description: "Passwords don't match!",
+        variant: "destructive",
+      });
       return;
     }
     
     if (!acceptTerms) {
-      alert("Please accept the terms and conditions");
+      toast({
+        title: "Error",
+        description: "Please accept the terms and conditions",
+        variant: "destructive",
+      });
       return;
     }
     
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await signUp(formData.email, formData.password, `${formData.firstName} ${formData.lastName}`);
+      setShowConfirmation(true);
+      toast({
+        title: "Success",
+        description: "Account created! Please check your email for the confirmation code.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-      console.log("Registration attempt:", formData);
-    }, 2000);
+    }
+  };
+
+  const handleConfirmSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      await confirmSignUp(formData.email, confirmationCode);
+      toast({
+        title: "Success",
+        description: "Account confirmed successfully! You can now sign in.",
+      });
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to confirm account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -71,7 +120,8 @@ const Register = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {!showConfirmation ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
@@ -217,6 +267,45 @@ const Register = () => {
                 {isLoading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
+            ) : (
+              <form onSubmit={handleConfirmSignUp} className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold">Confirm Your Account</h3>
+                  <p className="text-sm text-muted-foreground">
+                    We've sent a confirmation code to {formData.email}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="confirmationCode">Confirmation Code</Label>
+                  <Input
+                    id="confirmationCode"
+                    placeholder="Enter 6-digit code"
+                    value={confirmationCode}
+                    onChange={(e) => setConfirmationCode(e.target.value)}
+                    required
+                    maxLength={6}
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full bg-real-estate-primary hover:bg-real-estate-primary/90"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Confirming..." : "Confirm Account"}
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowConfirmation(false)}
+                >
+                  Back to Registration
+                </Button>
+              </form>
+            )}
             
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
