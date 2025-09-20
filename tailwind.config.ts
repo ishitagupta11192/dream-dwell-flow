@@ -57,11 +57,27 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "real-estate": {
+          primary: "hsl(var(--real-estate-primary))",
+          "primary-foreground": "hsl(var(--real-estate-primary-foreground))",
+          secondary: "hsl(var(--real-estate-secondary))",
+          accent: "hsl(var(--real-estate-accent))",
+          success: "hsl(var(--real-estate-success))",
+          warning: "hsl(var(--real-estate-warning))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      backgroundImage: {
+        "gradient-hero": "var(--gradient-hero)",
+        "gradient-card": "var(--gradient-card)",
+      },
+      boxShadow: {
+        "card": "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
       },
       keyframes: {
         "accordion-down": {
