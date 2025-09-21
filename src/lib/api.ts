@@ -69,23 +69,16 @@ class ApiService {
       const apiUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
       const fullUrl = `${apiUrl}${url}`;
       
-      console.log('🔍 API Request:', fullUrl);
-      console.log('🔍 Headers:', await this.getAuthHeaders());
-      
       const response = await fetch(fullUrl, {
         method: 'GET',
         headers: await this.getAuthHeaders(),
       });
-
-      console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response headers:', response.headers);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('🔍 Response data:', data);
       return data;
     } catch (error) {
       console.error('Error fetching properties:', error);

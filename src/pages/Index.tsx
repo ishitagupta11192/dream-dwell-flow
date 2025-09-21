@@ -17,12 +17,14 @@ const Index = () => {
     const loadProperties = async () => {
       try {
         setLoading(true);
+        console.log('🔄 Loading properties...');
         const data = await apiService.getProperties();
+        console.log('✅ Properties loaded:', data);
         setProperties(data);
         setError(null);
       } catch (err) {
-        console.error('Error loading properties:', err);
-        setError('Failed to load properties. Please try again.');
+        console.error('❌ Error loading properties:', err);
+        setError(`Failed to load properties: ${err.message}`);
       } finally {
         setLoading(false);
       }
