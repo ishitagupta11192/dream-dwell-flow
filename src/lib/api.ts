@@ -46,17 +46,8 @@ export interface SearchFilters {
 
 class ApiService {
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    try {
-      const session = await authService.getCurrentSession();
-      if (session) {
-        return {
-          'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`,
-          'Content-Type': 'application/json',
-        };
-      }
-    } catch (error) {
-      console.error('Error getting auth headers:', error);
-    }
+    // For local development, just return basic headers
+    // In production with AWS, this would include JWT tokens
     return {
       'Content-Type': 'application/json',
     };
