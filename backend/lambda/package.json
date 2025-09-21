@@ -1,0 +1,23 @@
+{
+  "name": "dream-dwell-flow-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for Dream Dwell Flow property management",
+  "type": "module",
+  "main": "property-handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "dynamodb",
+    "real-estate",
+    "property-management"
+  ],
+  "author": "Dream Dwell Flow",
+  "license": "MIT"
+}
