@@ -6,6 +6,9 @@ const hasAwsConfig =
   import.meta.env.VITE_USER_POOL_CLIENT_ID &&
   import.meta.env.VITE_AWS_REGION;
 
+// Set default API URL for local development
+const defaultApiUrl = 'http://localhost:3001';
+
 // AWS Configuration - only configure if we have the required environment variables
 if (hasAwsConfig) {
   const awsConfig = {
@@ -44,4 +47,5 @@ if (hasAwsConfig) {
   console.log('AWS environment variables not found. Running in demo mode without authentication.');
 }
 
+export { hasAwsConfig, defaultApiUrl };
 export default hasAwsConfig;

@@ -1,5 +1,6 @@
 import { API } from 'aws-amplify';
 import { authService } from './auth';
+import { defaultApiUrl } from './aws-config';
 
 export interface Property {
   id: string;
@@ -74,7 +75,8 @@ class ApiService {
       const queryString = params.toString();
       const url = queryString ? `/properties?${queryString}` : '/properties';
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
+      const apiUrl = import.meta.env.VITE_API_URL || defaultApiUrl || defaultApiUrl;
+      const response = await fetch(`${apiUrl}${url}`, {
         method: 'GET',
         headers: await this.getAuthHeaders(),
       });
@@ -92,7 +94,7 @@ class ApiService {
 
   async getProperty(id: string): Promise<Property> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
         method: 'GET',
         headers: await this.getAuthHeaders(),
       });
@@ -110,7 +112,7 @@ class ApiService {
 
   async createProperty(property: CreatePropertyParams): Promise<Property> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties`, {
         method: 'POST',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify(property),
@@ -130,7 +132,7 @@ class ApiService {
   async updateProperty(property: UpdatePropertyParams): Promise<Property> {
     try {
       const { id, ...updateData } = property;
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
         method: 'PUT',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify(updateData),
@@ -149,7 +151,7 @@ class ApiService {
 
   async deleteProperty(id: string): Promise<void> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
         method: 'DELETE',
         headers: await this.getAuthHeaders(),
       });
@@ -166,7 +168,7 @@ class ApiService {
   async uploadImage(file: File): Promise<{ uploadUrl: string; imageUrl: string }> {
     try {
       // First, get a pre-signed URL for upload
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/upload`, {
         method: 'POST',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify({

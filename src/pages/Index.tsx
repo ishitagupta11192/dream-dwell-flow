@@ -1,95 +1,48 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SearchForm, { SearchFilters } from "@/components/SearchForm";
 import PropertyCard, { Property } from "@/components/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, TrendingUp, Shield, Award, Users } from "lucide-react";
-
-// Mock data for properties
-const mockProperties: Property[] = [
-  {
-    id: "1",
-    title: "Modern Family Home",
-    price: 750000,
-    location: "Beverly Hills, CA",
-    bedrooms: 4,
-    bathrooms: 3,
-    area: 2500,
-    image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop",
-    type: "sale",
-    featured: true,
-    description: "Beautiful modern home with stunning architecture"
-  },
-  {
-    id: "2",
-    title: "Luxury Downtown Apartment",
-    price: 3500,
-    location: "Manhattan, NY",
-    bedrooms: 2,
-    bathrooms: 2,
-    area: 1200,
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop",
-    type: "rent",
-    description: "Luxury apartment in the heart of the city"
-  },
-  {
-    id: "3",
-    title: "Cozy Suburban House",
-    price: 450000,
-    location: "Austin, TX",
-    bedrooms: 3,
-    bathrooms: 2,
-    area: 1800,
-    image: "https://images.unsplash.com/photo-1605146769289-440113cc3d00?w=600&h=400&fit=crop",
-    type: "sale",
-    description: "Perfect family home in quiet neighborhood"
-  },
-  {
-    id: "4",
-    title: "Ocean View Villa",
-    price: 1200000,
-    location: "Malibu, CA",
-    bedrooms: 5,
-    bathrooms: 4,
-    area: 3500,
-    image: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&h=400&fit=crop",
-    type: "sale",
-    featured: true,
-    description: "Stunning villa with panoramic ocean views"
-  },
-  {
-    id: "5",
-    title: "Student Studio",
-    price: 1200,
-    location: "Boston, MA",
-    bedrooms: 1,
-    bathrooms: 1,
-    area: 500,
-    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop",
-    type: "rent",
-    description: "Affordable studio apartment near university"
-  },
-  {
-    id: "6",
-    title: "Historic Townhouse",
-    price: 650000,
-    location: "Charleston, SC",
-    bedrooms: 3,
-    bathrooms: 3,
-    area: 2200,
-    image: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=600&h=400&fit=crop",
-    type: "sale",
-    description: "Charming historic home with modern updates"
-  }
-];
+import { apiService } from "@/lib/api";
 
 const Index = () => {
-  const [properties, setProperties] = useState<Property[]>(mockProperties);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  const handleSearch = (filters: SearchFilters) => {
-    // In a real app, this would make an API call
-    console.log("Search filters:", filters);
+  // Load properties on component mount
+  useEffect(() => {
+    const loadProperties = async () => {
+      try {
+        setLoading(true);
+        const data = await apiService.getProperties();
+        setProperties(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error loading properties:', err);
+        setError('Failed to load properties. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProperties();
+  }, []);
+
+  const handleSearch = async (filters: SearchFilters) => {
+    try {
+      setLoading(true);
+      const data = await apiService.getProperties(filters);
+      setProperties(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error searching properties:', err);
+      setError('Failed to search properties. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const featuredProperties = properties.filter(p => p.featured);
@@ -99,6 +52,28 @@ const Index = () => {
     { label: "Years Experience", value: "15+", icon: Award },
     { label: "Trusted Agents", value: "500+", icon: Shield },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-real-estate-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading properties...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
