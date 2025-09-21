@@ -7,7 +7,8 @@ const hasAwsConfig =
   import.meta.env.VITE_AWS_REGION;
 
 // Set default API URL for local development
-const defaultApiUrl = 'http://localhost:3001';
+// Use Vite proxy in development to avoid CORS issues
+const defaultApiUrl = import.meta.env.DEV ? '/api' : 'http://localhost:3001';
 
 // AWS Configuration - only configure if we have the required environment variables
 if (hasAwsConfig) {
