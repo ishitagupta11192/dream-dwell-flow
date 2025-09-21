@@ -1,5 +1,7 @@
-import { Auth } from 'aws-amplify';
+import { signUp, confirmSignUp, signIn, signOut, getCurrentUser, resendSignUpCode, resetPassword, confirmResetPassword } from 'aws-amplify/auth';
+import { fetchUserAttributes } from 'aws-amplify/auth';
 import { CognitoUser } from 'amazon-cognito-identity-js';
+import hasAwsConfig from './aws-config';
 
 export interface User {
   id: string;
@@ -25,14 +27,20 @@ export interface AuthState {
 }
 
 class AuthService {
-  async signUp({ email, password, name }: SignUpParams): Promise<CognitoUser> {
+  async signUp({ email, password, name }: SignUpParams): Promise<any> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      const { user } = await Auth.signUp({
+      const { user } = await signUp({
         username: email,
         password,
-        attributes: {
-          email,
-          name,
+        options: {
+          userAttributes: {
+            email,
+            name,
+          },
         },
       });
       return user;
@@ -43,8 +51,12 @@ class AuthService {
   }
 
   async confirmSignUp(email: string, code: string): Promise<string> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      await Auth.confirmSignUp(email, code);
+      await confirmSignUp({ username: email, confirmationCode: code });
       return 'User confirmed successfully';
     } catch (error) {
       console.error('Error confirming sign up:', error);
@@ -52,9 +64,13 @@ class AuthService {
     }
   }
 
-  async signIn({ email, password }: SignInParams): Promise<CognitoUser> {
+  async signIn({ email, password }: SignInParams): Promise<any> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      const user = await Auth.signIn(email, password);
+      const user = await signIn({ username: email, password });
       return user;
     } catch (error) {
       console.error('Error signing in:', error);
@@ -63,8 +79,12 @@ class AuthService {
   }
 
   async signOut(): Promise<void> {
+    if (!hasAwsConfig) {
+      return; // No-op when AWS is not configured
+    }
+    
     try {
-      await Auth.signOut();
+      await signOut();
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -72,14 +92,18 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<User | null> {
+    if (!hasAwsConfig) {
+      return null;
+    }
+    
     try {
-      const user = await Auth.currentAuthenticatedUser();
-      const attributes = await Auth.userAttributes(user);
+      const user = await getCurrentUser();
+      const attributes = await fetchUserAttributes();
       
       const userData: User = {
         id: user.username,
-        email: attributes.find(attr => attr.Name === 'email')?.Value || '',
-        name: attributes.find(attr => attr.Name === 'name')?.Value || '',
+        email: attributes.email || '',
+        name: attributes.name || '',
       };
       
       return userData;
@@ -90,9 +114,14 @@ class AuthService {
   }
 
   async getCurrentSession(): Promise<any> {
+    if (!hasAwsConfig) {
+      return null;
+    }
+    
     try {
-      const session = await Auth.currentSession();
-      return session;
+      // In Amplify v6, session is handled differently
+      const user = await getCurrentUser();
+      return user;
     } catch (error) {
       console.error('Error getting current session:', error);
       return null;
@@ -100,8 +129,12 @@ class AuthService {
   }
 
   async isAuthenticated(): Promise<boolean> {
+    if (!hasAwsConfig) {
+      return false;
+    }
+    
     try {
-      await Auth.currentAuthenticatedUser();
+      await getCurrentUser();
       return true;
     } catch (error) {
       return false;
@@ -109,8 +142,12 @@ class AuthService {
   }
 
   async resendConfirmationCode(email: string): Promise<void> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      await Auth.resendSignUp(email);
+      await resendSignUpCode({ username: email });
     } catch (error) {
       console.error('Error resending confirmation code:', error);
       throw error;
@@ -118,8 +155,12 @@ class AuthService {
   }
 
   async forgotPassword(email: string): Promise<void> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      await Auth.forgotPassword(email);
+      await resetPassword({ username: email });
     } catch (error) {
       console.error('Error initiating forgot password:', error);
       throw error;
@@ -127,8 +168,12 @@ class AuthService {
   }
 
   async forgotPasswordSubmit(email: string, code: string, newPassword: string): Promise<void> {
+    if (!hasAwsConfig) {
+      throw new Error('Authentication not available. AWS configuration required.');
+    }
+    
     try {
-      await Auth.forgotPasswordSubmit(email, code, newPassword);
+      await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
     } catch (error) {
       console.error('Error resetting password:', error);
       throw error;

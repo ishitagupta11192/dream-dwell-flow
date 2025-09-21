@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService, User, AuthState } from '@/lib/auth';
+import hasAwsConfig from '@/lib/aws-config';
 
 interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, name: string) => Promise<void>;
@@ -29,6 +30,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const checkAuthState = async () => {
+    // If AWS is not configured, skip authentication
+    if (!hasAwsConfig) {
+      setAuthState({
+        user: null,
+        isLoading: false,
+        isAuthenticated: false,
+      });
+      return;
+    }
+
     try {
       const isAuthenticated = await authService.isAuthenticated();
       if (isAuthenticated) {
