@@ -66,7 +66,8 @@ class ApiService {
       const queryString = params.toString();
       const url = queryString ? `/properties?${queryString}` : '/properties';
 
-      const apiUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
+      // Always use the default API URL for local development
+      const apiUrl = defaultApiUrl;
       const fullUrl = `${apiUrl}${url}`;
       
       const response = await fetch(fullUrl, {
@@ -88,7 +89,7 @@ class ApiService {
 
   async getProperty(id: string): Promise<Property> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
+      const response = await fetch(`${defaultApiUrl}/properties/${id}`, {
         method: 'GET',
         headers: await this.getAuthHeaders(),
       });
@@ -106,7 +107,7 @@ class ApiService {
 
   async createProperty(property: CreatePropertyParams): Promise<Property> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties`, {
+      const response = await fetch(`${defaultApiUrl}/properties`, {
         method: 'POST',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify(property),
@@ -126,7 +127,7 @@ class ApiService {
   async updateProperty(property: UpdatePropertyParams): Promise<Property> {
     try {
       const { id, ...updateData } = property;
-      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
+      const response = await fetch(`${defaultApiUrl}/properties/${id}`, {
         method: 'PUT',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify(updateData),
@@ -145,7 +146,7 @@ class ApiService {
 
   async deleteProperty(id: string): Promise<void> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/properties/${id}`, {
+      const response = await fetch(`${defaultApiUrl}/properties/${id}`, {
         method: 'DELETE',
         headers: await this.getAuthHeaders(),
       });
@@ -162,7 +163,7 @@ class ApiService {
   async uploadImage(file: File): Promise<{ uploadUrl: string; imageUrl: string }> {
     try {
       // First, get a pre-signed URL for upload
-      const response = await fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/upload`, {
+      const response = await fetch(`${defaultApiUrl}/upload`, {
         method: 'POST',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify({

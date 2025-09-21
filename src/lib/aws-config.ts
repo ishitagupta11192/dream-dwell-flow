@@ -4,7 +4,9 @@ import { Amplify } from 'aws-amplify';
 const hasAwsConfig = 
   import.meta.env.VITE_USER_POOL_ID && 
   import.meta.env.VITE_USER_POOL_CLIENT_ID &&
-  import.meta.env.VITE_AWS_REGION;
+  import.meta.env.VITE_AWS_REGION &&
+  import.meta.env.VITE_USER_POOL_ID !== 'placeholder-user-pool-id' &&
+  import.meta.env.VITE_USER_POOL_CLIENT_ID !== 'placeholder-user-pool-client-id';
 
 // Set default API URL for local development
 // Use Vite proxy in development to avoid CORS issues
