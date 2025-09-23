@@ -5,7 +5,7 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCo
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
 
-const TABLE_NAME = 'DreamDwellFlow-Properties';
+const TABLE_NAME = process.env.TABLE_NAME || 'DreamDwellFlow-Properties-dev';
 
 export const handler = async (event, context) => {
     const propertyId = toUrlString(randomBytes(16));

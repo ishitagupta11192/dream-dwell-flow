@@ -71,6 +71,8 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Scan
                   - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
                 Resource:
                   - !GetAtt PropertiesTable.Arn
                   - !Sub '${PropertiesTable.Arn}/index/*'
